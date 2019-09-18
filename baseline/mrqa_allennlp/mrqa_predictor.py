@@ -10,8 +10,9 @@ class MRQAPredictor(Predictor):
         if 'header' in json_dict:
             return {}
 
+        do_lower_case = self._dataset_reader._do_lower_case
         predictions = []
-        for question_chunks in self._dataset_reader.make_chunks(json_dict, {'dataset':''}):
+        for question_chunks in self._dataset_reader.make_chunks(json_dict, {'dataset':''}, do_lower_case):
             question_instances = []
             for instance in self._dataset_reader.gen_question_instances(question_chunks):
                 question_instances.append(instance)

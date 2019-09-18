@@ -31,6 +31,7 @@ class MRQAReader(DatasetReader):
                  token_indexers: Dict[str, TokenIndexer] = None,
                  dataset_weight = None,
                  lazy: bool = False,
+                 bert_vocab: str = "bert-base-uncased",
                  is_training = False,
                  sample_size: int = -1,
                  STRIDE: int = 128,
@@ -52,7 +53,8 @@ class MRQAReader(DatasetReader):
 
         # BERT specific init
         self._token_indexers = token_indexers or {'tokens': SingleIdTokenIndexer()}
-        bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+        self._do_lower_case = "uncased" in bert_vocab
+        bert_tokenizer = BertTokenizer.from_pretrained(bert_vocab, do_lower_case=self._do_lower_case)
         self._bert_wordpiece_tokenizer = bert_tokenizer.wordpiece_tokenizer.tokenize
         self._never_lowercase = ['[UNK]', '[SEP]', '[PAD]', '[CLS]', '[MASK]']
 
@@ -82,7 +84,7 @@ class MRQAReader(DatasetReader):
             while curr_token_ix < len(unproc_context['context_tokens']):
                 num_of_question_wordpieces = 0
                 for token in qa['question_tokens']:
-                    num_of_wordpieces, _ = self.token_to_wordpieces(token)
+                    num_of_wordpieces, _ = self.token_to_wordpieces(token, _bert_do_lowercase)
                     num_of_question_wordpieces += num_of_wordpieces
 
                 curr_token_ix = window_start_token_offset
@@ -106,7 +108,7 @@ class MRQAReader(DatasetReader):
                     # fixing the car offset of each token
                     curr_token[1] += question_char_offset - context_char_offset
 
-                    _, word_pieces = self.token_to_wordpieces(curr_token)
+                    _, word_pieces = self.token_to_wordpieces(curr_token, _bert_do_lowercase)
 
                     num_of_wordpieces += len(word_pieces)
                     if num_of_wordpieces < self._MAX_WORDPIECES - num_of_question_wordpieces - 1:
@@ -136,7 +138,6 @@ class MRQAReader(DatasetReader):
                 chunks.append(inst)
 
                 window_start_token_offset += self._STRIDE
-
             if len([inst for inst in chunks if inst['answers'] != []])>0:
                 per_question_chunks.append(chunks)
         return per_question_chunks
@@ -179,7 +180,7 @@ class MRQAReader(DatasetReader):
                     continue
 
                 for example in dataset['file_handle']:
-                    for question_chunks in self.make_chunks(json.loads(example), datasets[ind]['header']):
+                    for question_chunks in self.make_chunks(json.loads(example), datasets[ind]['header'], self._do_lower_case):
                         for instance in self.gen_question_instances( question_chunks):
                             yield instance
                         dataset['num_of_questions'] += 1
